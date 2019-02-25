@@ -1,0 +1,277 @@
+para crear proyecto ubicarse dentro del directorio deseado y ejecutar en consola:
+composer create-project laravel/laravel --prefer-dist
+
+composer create-project laravel/laravel testProject
+
+
+
+Configurar-> BDD, Zona horaria, Lenguaje (descargar desde GitHub package de lenguaje 'es')
+
+----
+
+Cambiar el namespace - 
+php artisan app:name Nombre
+---
+
+
+consola para iniciar puerto 8000.
+ php artisan serve --port=8000    (ahora está habilitado 'localhost:8000')
+ para pararlo solo 'Ctrl' + 'C'
+
+Para crear el controllador FULL (metodos)
+php artisan make:controller NOMBREcontrolador --resource
+
+**Para crear tablas
+php artisan make:model nombreTabla -m
+-> Luego se crearan archivos en el directorio database/migrations, dentro de esos archivos se deben crear los parámetros de la tabla
+https://laravel.com/docs/5.0/schema
+
+------------------
+* Crear database a través de shell de xampp:
+echo create DATABASE nombreDATABASE | mysql -u root -p
+------------------
+
+
+Luego de crear el ORM, se debe migrar a la BD -> luego de crear la BD se debe migrar el esquema ->
+php artisan migrate
+*Para deshacer esto -> php artisan migrate:rollback
+----------------
+Si no estoy corriendo mi motor de BD MySQL v5.7.7 (que soporta emojis), nos mostrará un error, por lo tanto se debe fixear en el fichero (app/providers/AppServiceProvider.php)->Se debe importar la libreria -> use  Illuminate\Support\Facades\Schema;
+y se debe agregar la siguiente línea de código en el método boot() ->  Schema::defaultStringLength(191);
+----------------
+
+
+
+------------
+*Si en algún momento da error referido a :
+Laravel 5 Class 'Collective\Html\HtmlServiceProvider' not found on AWS
+
+se debe escribir en la consola de composer:
+composer require laravelcollective/html
+-------------
+
+Para listar las rutas existentes->
+php artisan route:list
+
+------------------------------------
+
+**VALIDACIONES**
+En laravel (al menos de la v5.0) las validaciones se hacen a través de request, para crear un request se debe ejcutar el comando->
+php artisan make:request nombeDelRequest
+Se encuentran en app/Http/Requests
+
+Básicamente se setean las reglas o los campos que deben ser validados en el método 'rules'-
+Para ponerlos en marcha se debe editar el campo parámetro de los metodos en el controlado correspondiene 
+ej->
+Antiguo método = public function store (Request $request)
+Nuevo método = public function store (NombreDelRequest $request)
+
+Y además se debe importar la librería al controlador en el que estamos validando.
+Ej: use Cinema\Http\Requests\NombreDelRequest;
+
+Para desabilitar o habilitar un request se dabe setear la función 'autorize' ubicada en el archivo del request como 'true', del caso contrario, aunque tengamos los 2 pasos anteriores correctos, no se pondrá en marcha el request.
+
+**Mostrar validaciones al usuario
+
+Para mostrar las validaciones, sólo se debe escribir un trozo de código en el .blade correspondiente a las validaciones
+Por ej:
+@if(count($errors)>0)
+        <div class="alert alert-danger alert-dismissible" role='alert'>
+    <button type='button' class='close' data-dismiss='alert' aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <ul>
+        @foreach($errors->all() as $error)
+        <li>{!!$error!!}</li>
+        @endforeach
+    </ul>
+        
+        </div>
+@endif
+
+Para así, luego instanciarlo en el .blade que necesitemos validar, por ej en el create.blade.php
+(bajo la línea @include('alerts.request')
+ @include('alerts.request')
+
+
+--------------------------------------
+
+**Paginación
+Si se desea agregar paginación, sólo se debe agregan el método Users::paginate(AquíElNúmeroDeRegistrosAmostrar);
+y en el código .blade de la vista en la cual nosotros presentamos los registros, se agrega la siguiente línea de código
+{!!$users->render()!!}
+Ej; 
+	(En el controlador)
+ public function index()
+    {
+        //El ::paginate es para separar el número de resultados que queremos sean visibles x pagina 
+        $users = User::paginate(2);
+        return view('usuario.index', compact('users'));  
+    }
+
+	(En el .blade)
+	{!!$users->render()!!}
+
+
+
+---------------------------------------------
+Soft Deleting.
+Se utiliza el soft delete para ocultar la información del usuario pero no así borrarla de la BD.
+Para crearla en la tabla 'users' por ej, se agregan librerias en el .php del modelo usuario->
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+y luego se crea una variable dentro del archivo ->
+protected $dates = ['deleted_at'];
+
+luego, se va a la consola, a la ubicación del proyecto y se instancia la siguiente linea
+php artisan make:migration add_deleted_to_users_table --table=users
+
+luego, hay que dirigirse al archivo recién creado dentro del proyecto, ubicado en la carpeta /database/migrations/
+y en el método up() reemplazar el método por el siguiente ->
+Schema::table('users', function ($table) {
+    $table->softDeletes();
+});
+
+Finalmente, nos dirigimos a la consola y ejecutamos el siguiente comado ->
+php artisan migrate
+(Recordar encender los servicios de MySQL y si es necesario de apache)+
+
+Si queremos ver los elementos que fueron eliminados con 'soft-delete' se debe recurrir al siguiente método->
+
+$users = User::onlyTrashed()->paginate(2);
+
+---------------------------------------------
+
+Autentificación - Middleware.
+
+Middleware en laravel se utiliza entre otras cosas para verificar la correcta autentificación del usuario.
+Se declara en los controladores, especificamente se debe crear un constructor para el controlador y declarar el middleware dentro de él, además se especifica en que sección de la web va a ser aplicado, por ejemplo, un middleware aplicado a la sección 'admin', se declara en frontController de la siguiente manera->
+public function __construct(){
+        $this->middleware('auth', ['only' => 'admin']);
+    }
+
+Se debe definir a que ruta redireccionará el middleware, para ello se debe dirigir a Http\Middleware\(RedirectIfAuth... nombre dependiendo de la versión de laravel).
+y modificar el método 'handle' en la línea de return redirect() ->
+ if (Auth::guard($guard)->check()) {
+            return redirect('/');
+        }
+
+Además, se debe dirigir a la ruta Exceptions\Handler.php y modificar el método 'handler' quedando de la siguiente manera la última línea del método->
+return redirect()->guest('/');
+
+PARA CREAR NUESTRO PROPIO MIDDLEWARE.
+php artisan make:middleware nombreDelMiddleware
+
+Luego se debe dirigir a la ruta Http\Kernel.php y declarar el middle en el método $routeMiddleware, por ej ->
+'nombre1' => \Cinema\Http\Middleware\Nombre1::class,
+
+luego, se debe dirigir hacia el archivo middleware creado a través de artisan, en este caso le llamamos 'admin', y se debe agregar el siguiente método y variable ->
+  protected $auth;
+    
+   public function __construct(Guard $auth) {
+       $this->auth = $auth;
+   }
+
+Y dentro del método handle se debe modificar y quedar así ->
+ /*si el ID del usuario no es 1, se le asigna una condición, en este caso, es
+        que no es un administrador */
+        if($this->auth->user()->id != 1){
+            Session::flash('message-error', 'No tienes privilegios');
+            return redirect()->to('admin');
+        }
+        return $next($request);
+
+
+
+---------------------------------------------
+
+OCULTAR SEGMENTOS WEB DIRECTAMENTE EN EL .BLADE.PHP
+
+Para ocultar segmentos web preguntando por X parámetro del usuario, se debe agregar el siguiente trozo de código sobre el segmento a ocultar
+<!--  Aquí se pregunta si el id es 1, en este contexto, el administrador-->
+                            @if(Auth::user()->id == 1)
+
+para finalmente cerrar con la línea ->
+@endif
+
+
+----------------------------------------------
+Si llegase a dar el error
+laravel No supported encrypter found. The cipher and / or key length are invalid
+se soluciona así ->
+php artisan key:generate
+----------------------------------------------
+Si llegase a dar un error como
+Laravel QueryException in Connection.php line 651: SQLSTATE[42S02]: Base table or view not found
+se soluciona así ->
+php artisan migrate
+----------------------------------------------
+
+Llamar a store procedure:
+
+$products = DB::select("call nombreDelProcedure($variable)");
+return View('carpeta/archivo')->with('products', $products);
+
+------------------------------------------------
+
+Todos los controladores deven estar en mayúsculas
+
+----------------------------------------------------
+
+Tests y logs de errores.
+*Para poder ver en detalle que es lo que está dando el error se debe dirigir a la carpeta logs, al archivo 'laravel.log' y borrar todo el contenido de este archivo, luego ejecutar lo que está dando error de nuevo y ahí indicara cual es el error en específico.
+
+------------------------------------------------------
+
+Para modificar las tablas a través de laravel pero sin que estas pierdan los registros se puede hacer de la sgte manera:
+
+-> Crear una migracion: (consola) 
+php artisan make:migration NombreDeLaMigracion
+
+->Ir al package migrations del proyecto, dentro del archivo recién creado, y agregar dentro del método up, por EJ:
+
+Schemma::table('usuarios', function(Blueprint $table) {
+	$table->string('profesion', 50)->nullable()->after(pass);
+});
+
+-> método down: (es el que se ocupa cuando se utiliza rollback)
+
+	Schemma::table('users', function (Blueprint $table){
+	$table->dropColumn('profesion');
+});
+
+////////////////////////////////////
+
+php artisan migrate:reset 
+(devuelve todas las migraciones en orden inverso)
+
+php artisan migrate:refresh
+(ejecuta todos los metodos down de las tablas y luego los up)
+
+//////////////////////////////////////
+
+
+--Para crear calve foránea en laravel--
+https://www.youtube.com/watch?v=8R5fYk5AsgQ
+(dentro del .php de la tabla)
+
+public function up()
+{
+  $table->increments('id);
+  $table->foreign ('id_profesion)->references('id')->on('professions')
+  $table->string('name')
+  $table->string('email')->unique();
+  $table->rememberToken();
+  $table->timestamps();
+}
+
+//////////////////////////////////////
+
+
+dd($request->session()->get('cart')); 
+PARA OBTENER TODA LA INFO DE LA VARIABLE
+
+//////////////////////////////////////
+
+$path = public_path();
+return dd($path);
+PARA SABER DONDE ESTÁ EL PATH PUBLICO
